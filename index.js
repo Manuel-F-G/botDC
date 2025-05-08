@@ -1,4 +1,4 @@
-process.env.FFMPEG_PATH = require('@ffmpeg-installer/ffmpeg').path;
+process.env.FFMPEG_PATH = require('ffmpeg-static');
 const {
   Client,
   GatewayIntentBits,
