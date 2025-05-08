@@ -17,7 +17,7 @@ const ALLOWED_CHANNELS = [
 ];
 const TARGET_USER_IDS = [
   '1298518404033941565',
-  '1357943865931468911'
+  '679883915296505889'
 ];
 
 const AUDIO_FILE = './sonido.mp3'; // Asegúrate de que esté presente
