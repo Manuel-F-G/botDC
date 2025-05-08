@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 process.env.FFMPEG_PATH = require('ffmpeg-static');
 const {
   Client,
@@ -14,8 +16,6 @@ const {
   AudioPlayerStatus
 } = require('@discordjs/voice');
 const { FFmpeg } = require('prism-media');
-const express = require('express');
-const fs = require('fs');
 
 // Usamos ffmpeg-static para obtener el path del ejecutable
 const ffmpegPath = require('ffmpeg-static').path;
@@ -40,7 +40,7 @@ const ALLOWED_CHANNELS = [
   '1369767579752730745'
 ];
 const TIMEOUT_MS = 10 * 1000;
-const AUDIO_FILE = './sonido.mp3';
+const AUDIO_FILE = path.join(__dirname, 'sonido.mp3');
 
 const client = new Client({
   intents: [
@@ -135,6 +135,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
 // 🔁 Función para reproducir sonido en bucle
 function playLoop() {
+  // Verificar si el archivo de audio existe
+  if (!fs.existsSync(AUDIO_FILE)) {
+    console.error(`❌ El archivo de audio no existe: ${AUDIO_FILE}`);
+    return;
+  }
+
   const ffmpeg = new FFmpeg({
     args: [
       '-analyzeduration', '0',
@@ -152,7 +158,12 @@ function playLoop() {
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
+    console.log("🔁 Reproducción completada. Reproduciendo de nuevo...");
     playLoop(); // Llamada recursiva para el bucle
+  });
+
+  player.on(AudioPlayerStatus.Playing, () => {
+    console.log("🎶 El sonido está siendo reproducido.");
   });
 }
 
