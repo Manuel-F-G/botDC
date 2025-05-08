@@ -1,9 +1,7 @@
-process.env.FFMPEG_PATH = require('ffmpeg-static');
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { joinVoiceChannel, VoiceConnectionStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const { FFmpeg } = require('prism-media');
+const { joinVoiceChannel, VoiceConnectionStatus, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const express = require('express');
+const fs = require('fs');
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot activo'));
@@ -18,10 +16,11 @@ const ALLOWED_CHANNELS = [
   '1369767579752730745'
 ];
 const TARGET_USER_IDS = [
-  '1298518404033941565', 
-  '1357943865931468911']; // Este es solo un ejemplo. Cambia con tus usuarios.
+  '1298518404033941565',
+  '1357943865931468911'
+];
 
-const AUDIO_FILE = './sonido.mp3'; // Asegúrate de que el archivo de sonido esté en la ruta correcta
+const AUDIO_FILE = './sonido.mp3'; // Asegúrate de que esté presente
 
 const client = new Client({
   intents: [
@@ -40,40 +39,32 @@ client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
 });
 
-// Función para reproducir el audio en bucle
+// 🎵 Función simplificada para reproducir el audio en bucle
 function playSound() {
-  const fs = require('fs');
   if (!fs.existsSync(AUDIO_FILE)) {
     console.error('❌ Archivo de audio no encontrado:', AUDIO_FILE);
-  } else {
-    console.log('✅ Archivo de audio encontrado correctamente');
+    return;
   }
 
-  const ffmpeg = new FFmpeg({
-    args: [
-      '-analyzeduration', '0',
-      '-loglevel', '0',
-      '-i', AUDIO_FILE,
-      '-f', 's16le',
-      '-ar', '48000',
-      '-ac', '2'
-    ],
-    executablePath: ffmpegInstaller.path
-  });
+  console.log('✅ Archivo de audio encontrado correctamente');
 
-  const resource = createAudioResource(ffmpeg);
+  const resource = createAudioResource(AUDIO_FILE);
   player = createAudioPlayer();
-  player.play(resource);
   connection.subscribe(player);
 
-  player.on('idle', () => {
+  player.play(resource);
+
+  player.on(AudioPlayerStatus.Idle, () => {
     console.log('Audio terminado, reiniciando...');
-    playSound();
+    playSound(); // Vuelve a reproducir
+  });
+
+  player.on('error', error => {
+    console.error('Error al reproducir audio:', error);
   });
 }
 
-
-// Seguimiento de usuarios en canales de voz
+// 📡 Seguimiento de usuarios en canales de voz
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const user = newState.member?.user;
   if (!user || user.bot) return;
@@ -81,38 +72,30 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   const joinedTarget = TARGET_USER_IDS.includes(user.id) && newState.channelId !== null;
   const leftChannel = TARGET_USER_IDS.includes(user.id) && newState.channelId === null;
 
-  // Si el usuario objetivo se une a un canal de voz
   if (joinedTarget) {
     const channel = newState.channel;
     if (!channel) return;
 
-    if (connection) connection.destroy(); // Desconectar del canal anterior si ya está conectado
+    if (connection) connection.destroy();
 
-    // Unirse al canal de voz
     connection = joinVoiceChannel({
       channelId: channel.id,
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator,
     });
 
-    try {
-      await connection.once(VoiceConnectionStatus.Ready, () => {
-        console.log(`🔊 Conectado al canal de voz: ${channel.name}`);
-        playSound(); // Reproducir el sonido al conectarse al canal
-      });
-    } catch (error) {
-      console.error('❌ Error al conectar a voz:', error);
-    }
+    connection.once(VoiceConnectionStatus.Ready, () => {
+      console.log(`🔊 Conectado al canal de voz: ${channel.name}`);
+      playSound();
+    });
   }
 
-  // Si el usuario objetivo se desconecta del canal de voz
   if (leftChannel && connection) {
     const guild = newState.guild;
     const stillSomeone = guild.members.cache.some(m =>
       TARGET_USER_IDS.includes(m.id) && m.voice.channelId
     );
 
-    // Si no hay más usuarios objetivos en el canal, desconectarse
     if (!stillSomeone) {
       connection.destroy();
       connection = null;
