@@ -1,52 +1,132 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus,
+  VoiceConnectionStatus,
+  entersState,
+  AudioPlayer
+} = require('@discordjs/voice');
+const { FFmpeg } = require('prism-media');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const express = require('express');
+const { promisify } = require('util');
 
-// === CONFIGURACIÓN ===
-const ALLOWED_CHANNELS = [
-  '1369775267639201792',
-  '1369547402465509376',
-  '1369767579752730745'
-];
-const TIMEOUT_MS = 10 * 1000;
+process.env.FFMPEG_PATH = ffmpegInstaller.path;
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates
   ],
   partials: [Partials.Channel]
 });
 
-client.once('ready', () => {
-  console.log(`✅ Bot iniciado como ${client.user.tag}`);
-});
+const AUDIO_FILE = './sonido.mp3'; // Cambia esto con la ruta de tu archivo de sonido
+let targetUser = null; // Usuario al que se sigue
+let player = null;
+let connection = null;
+let isPaused = false;
 
-// Timeout con !play o !p
+// Comandos y configuración
+const ALLOWED_CHANNELS = [
+  '1369775267639201792', // ID de los canales donde el bot escucha comandos
+  '1369547402465509376',
+  '1369767579752730745'
+];
+
+const app = express();
+app.get('/', (req, res) => res.send('Bot activo'));
+app.listen(process.env.PORT || 3000, () =>
+  console.log('🌐 Servidor web activo')
+);
+
+// Función para unirse al canal de voz
+async function joinToVoiceChannel(channel) {
+  if (connection) {
+    connection.destroy();
+  }
+
+  connection = joinVoiceChannel({
+    channelId: channel.id,
+    guildId: channel.guild.id,
+    adapterCreator: channel.guild.voiceAdapterCreator
+  });
+
+  await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+  console.log(`🔊 Conectado a canal de voz: ${channel.name}`);
+}
+
+// Comando !interrumpir
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // Verifica si el mensaje es el comando !play o !p
-  if (message.content.startsWith('!play') || message.content.startsWith('!p')) {
-    // Verifica si el canal donde se envió el mensaje está permitido
-    if (!ALLOWED_CHANNELS.includes(message.channel.id)) return;
+  const args = message.content.split(' ');
+  if (args[0] === '!interrumpir' && args[1]) {
+    const userId = args[1].replace(/[<@!>]/g, ''); // Extrae el ID del usuario
+    targetUser = await message.guild.members.fetch(userId);
 
-    try {
-      const member = message.member;
-      if (!member.moderatable) {
-        return message.reply('❌ No puedo dar timeout a este usuario.');
-      }
+    const channel = targetUser.voice.channel;
 
-      // Aplica el timeout
-      await member.timeout(TIMEOUT_MS, 'Usó !play o !p en canal permitido');
-      await message.reply(
-        `⏳ ${member.user.tag} recibió timeout por usar !play o !p.`
-      );
-    } catch (err) {
-      console.error('Error al aplicar timeout:', err);
-      message.reply('❌ Hubo un error al aplicar el timeout.');
+    if (!channel) {
+      return message.reply('❌ El usuario no está en un canal de voz.');
+    }
+
+    await joinToVoiceChannel(channel);
+    message.reply(`🔊 Ahora sigo a ${targetUser.user.tag} y reproduzco sonido cuando hable.`);
+  }
+
+  // Comando para pausar la reproducción
+  if (args[0] === '!pausar') {
+    if (isPaused) {
+      return message.reply('❌ La reproducción ya está pausada.');
+    }
+    isPaused = true;
+    player.pause();
+    message.reply('⏸️ Reproducción pausada.');
+  }
+});
+
+// Seguimiento del usuario y reproducción cuando hable
+client.on('voiceStateUpdate', (oldState, newState) => {
+  if (!targetUser || !targetUser.voice || newState.member.user.bot) return;
+
+  if (newState.member.id === targetUser.id && newState.channelId !== oldState.channelId) {
+    // Si el usuario objetivo se mueve de canal
+    if (connection) connection.destroy();
+    joinToVoiceChannel(newState.channel);
+  }
+
+  if (newState.channelId === oldState.channelId && newState.member.id === targetUser.id) {
+    // Reproducir cuando el usuario hable en el canal
+    if (newState.channelId && connection && !isPaused) {
+      const player = createAudioPlayer();
+      const resource = createAudioResource(new FFmpeg({
+        args: [
+          '-analyzeduration', '0',
+          '-loglevel', '0',
+          '-i', AUDIO_FILE,
+          '-f', 's16le',
+          '-ar', '48000',
+          '-ac', '2'
+        ],
+        executablePath: ffmpegInstaller.path
+      }));
+
+      player.play(resource);
+      connection.subscribe(player);
+      player.once(AudioPlayerStatus.Idle, () => {
+        console.log('Audio terminado');
+      });
     }
   }
+});
+
+client.once('ready', () => {
+  console.log(`✅ Bot iniciado como ${client.user.tag}`);
 });
 
 client.login(process.env.DISCORD_TOKEN);
