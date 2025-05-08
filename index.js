@@ -1,7 +1,7 @@
-const {
-  Client,
-  GatewayIntentBits,
-  Partials
+const { 
+  Client, 
+  GatewayIntentBits, 
+  Partials 
 } = require('discord.js');
 const {
   joinVoiceChannel,
@@ -15,22 +15,11 @@ const {
 const fs = require('fs');
 const express = require('express');
 
-// Servidor web para Railway
 const app = express();
 app.get('/', (req, res) => res.send('Bot activo'));
-app.listen(process.env.PORT || 3000, () =>
-  console.log('🌐 Servidor web activo')
-);
-
-// CONFIGURACIÓN
-const TARGET_USER_IDS = ['1368112694468808807', '1055009202168406118', '752987605808840807', '1344499474994823230'];
-const ALLOWED_CHANNELS = [
-  '1369775267639201792',
-  '1369547402465509376',
-  '1369767579752730745'
-];
-const TIMEOUT_MS = 10 * 1000;
-const AUDIO_FILE = './sonido.mp3'; // Asegúrate de tener este archivo en la raíz
+app.listen(process.env.PORT || 3000, () => {
+  console.log('🌐 Servidor web activo');
+});
 
 const client = new Client({
   intents: [
@@ -42,6 +31,24 @@ const client = new Client({
   ],
   partials: [Partials.Channel]
 });
+
+// CONFIGURACIÓN
+const TARGET_USER_IDS = [
+  '1368112694468808807',
+  '1298518404033941565',
+  '1055009202168406118', 
+  '752987605808840807',
+  '1344499474994823230'
+];
+const ALLOWED_CHANNELS = [
+  '1369775267639201792',
+  '1369547402465509376',
+  '1369767579752730745'
+];
+const TIMEOUT_MS = 10 * 1000;
+const AUDIO_FILE = './sonido.mp3'; 
+let activeConnection = null;
+let currentPlayer = null;
 
 client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
@@ -72,55 +79,50 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// Entrar al canal de voz y reproducir sonido en bucle
+// Detectar entrada a canal de voz y reproducir sonido en bucle
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const user = newState.member?.user;
   if (!user || user.bot) return;
 
-  if (
-    TARGET_USER_IDS.includes(user.id) &&
-    newState.channelId &&
-    newState.channelId !== oldState.channelId
-  ) {
-    try {
-      const voiceChannel = newState.channel;
-      if (!voiceChannel) return;
+  // Usuario objetivo entra a canal de voz
+  if (TARGET_USER_IDS.includes(user.id) && newState.channelId && newState.channelId !== oldState.channelId) {
+    const voiceChannel = newState.channel;
 
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: voiceChannel.guild.id,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator
-      });
-
-      await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-      console.log(`🔊 Conectado a canal de voz: ${voiceChannel.name}`);
-
-      const player = createAudioPlayer();
-      connection.subscribe(player);
-
-      const playLoop = () => {
-        const resource = createAudioResource(fs.createReadStream(AUDIO_FILE));
-        player.play(resource);
-      };
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        playLoop(); // Reproducir de nuevo cuando termine
-      });
-
-      playLoop(); // Empezar la primera vez
-
-      console.log(`▶️ Reproduciendo sonido en bucle para ${user.username}`);
-    } catch (error) {
-      console.error('❌ Error al conectar o reproducir:', error);
+    if (activeConnection) {
+      activeConnection.destroy();
     }
+
+    activeConnection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: voiceChannel.guild.id,
+      adapterCreator: voiceChannel.guild.voiceAdapterCreator
+    });
+
+    await entersState(activeConnection, VoiceConnectionStatus.Ready, 30_000);
+
+    currentPlayer = createAudioPlayer();
+
+    const playLoop = () => {
+      const resource = createAudioResource(fs.createReadStream(AUDIO_FILE));
+      currentPlayer.play(resource);
+    };
+
+    currentPlayer.on(AudioPlayerStatus.Idle, () => {
+      playLoop(); // bucle
+    });
+
+    activeConnection.subscribe(currentPlayer);
+    playLoop();
+
+    console.log(`🔊 Reproduciendo sonido en ${voiceChannel.name} para ${user.username}`);
   }
 
-  // Si el usuario sale del canal, detener el sonido
+  // Usuario sale del canal
   if (TARGET_USER_IDS.includes(user.id) && newState.channelId === null) {
     const connection = getVoiceConnection(oldState.guild.id);
     if (connection) {
-      connection.destroy(); // Salir del canal
-      console.log(`❌ ${user.username} salió del canal, deteniendo el sonido.`);
+      connection.destroy();
+      console.log(`❌ ${user.username} salió del canal. Se detuvo el audio.`);
     }
   }
 });
