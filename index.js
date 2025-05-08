@@ -1,8 +1,7 @@
 const {
   Client,
   GatewayIntentBits,
-  Partials,
-  Events
+  Partials
 } = require('discord.js');
 const {
   joinVoiceChannel,
@@ -14,11 +13,9 @@ const {
   AudioPlayerStatus
 } = require('@discordjs/voice');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const prism = require('prism-media');
+const { FFmpeg } = require('prism-media');
 const express = require('express');
 const fs = require('fs');
-
-process.env.FFMPEG_PATH = ffmpegInstaller.path; // 👈 Necesario para que funcione en Railway
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot activo'));
@@ -54,7 +51,6 @@ const client = new Client({
 });
 
 let connection = null;
-let currentChannelId = null;
 let player = null;
 
 client.once('ready', () => {
@@ -97,7 +93,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const channel = newState.channel;
     if (!channel) return;
 
-    // Si ya está en un canal, cámbialo
     if (connection) connection.destroy();
 
     connection = joinVoiceChannel({
@@ -110,19 +105,19 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
       console.log(`🔊 Conectado a canal de voz: ${channel.name}`);
 
-      // Crear reproductor y reproducir en bucle
       player = createAudioPlayer();
-      playLoop();
       connection.subscribe(player);
+      playLoop(); // Iniciar sonido en bucle
 
     } catch (error) {
       console.error('❌ Error al conectar a voz:', error);
     }
   }
 
-  // Si el último usuario objetivo se va del canal, detener audio y salir
-  if (leftChannel && newState.channelId === null && connection) {
-    const stillSomeone = newState.guild.members.cache.some(m =>
+  // Si ya no queda ningún usuario objetivo en canal, desconecta
+  if (leftChannel && connection) {
+    const guild = newState.guild;
+    const stillSomeone = guild.members.cache.some(m =>
       TARGET_USER_IDS.includes(m.id) && m.voice.channelId
     );
 
@@ -135,9 +130,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 });
 
-// Función para reproducir el sonido en bucle
+// 🔁 Función para reproducir sonido en bucle
 function playLoop() {
-  const resource = createAudioResource(new prism.FFmpeg({
+  const ffmpeg = new FFmpeg({
     args: [
       '-analyzeduration', '0',
       '-loglevel', '0',
@@ -145,13 +140,15 @@ function playLoop() {
       '-f', 's16le',
       '-ar', '48000',
       '-ac', '2'
-    ]
-  }));
+    ],
+    executablePath: ffmpegInstaller.path // 👈 ESTA LÍNEA ES CRUCIAL
+  });
 
+  const resource = createAudioResource(ffmpeg);
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
-    playLoop(); // repetir
+    playLoop(); // Llamada recursiva para bucle
   });
 }
 
