@@ -42,6 +42,13 @@ client.once('ready', () => {
 
 // Función para reproducir el audio en bucle
 function playSound() {
+  const fs = require('fs');
+  if (!fs.existsSync(AUDIO_FILE)) {
+    console.error('❌ Archivo de audio no encontrado:', AUDIO_FILE);
+  } else {
+    console.log('✅ Archivo de audio encontrado correctamente');
+  }
+
   const ffmpeg = new FFmpeg({
     args: [
       '-analyzeduration', '0',
@@ -51,7 +58,7 @@ function playSound() {
       '-ar', '48000',
       '-ac', '2'
     ],
-    executablePath: ffmpegInstaller.path // Asegúrate de que esta ruta esté bien
+    executablePath: ffmpegInstaller.path
   });
 
   const resource = createAudioResource(ffmpeg);
@@ -59,11 +66,12 @@ function playSound() {
   player.play(resource);
   connection.subscribe(player);
 
-  player.once('idle', () => {
+  player.on('idle', () => {
     console.log('Audio terminado, reiniciando...');
-    playSound(); // Volver a reproducir el sonido cuando termine
+    playSound();
   });
 }
+
 
 // Seguimiento de usuarios en canales de voz
 client.on('voiceStateUpdate', async (oldState, newState) => {
