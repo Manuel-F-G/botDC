@@ -1,3 +1,4 @@
+process.env.FFMPEG_PATH = require('@ffmpeg-installer/ffmpeg').path;
 const {
   Client,
   GatewayIntentBits,
@@ -141,8 +142,10 @@ function playLoop() {
       '-ar', '48000',
       '-ac', '2'
     ],
-    executablePath: ffmpegInstaller.path // 👈 ESTA LÍNEA ES CRUCIAL
+    shell: false,
+    executablePath: ffmpegInstaller.path // 🔧 Esto es lo correcto
   });
+  
 
   const resource = createAudioResource(ffmpeg);
   player.play(resource);
