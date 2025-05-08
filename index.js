@@ -1,18 +1,6 @@
 process.env.FFMPEG_PATH = require('ffmpeg-static');
-const {
-  Client,
-  GatewayIntentBits,
-  Partials
-} = require('discord.js');
-const {
-  joinVoiceChannel,
-  getVoiceConnection,
-  createAudioPlayer,
-  createAudioResource,
-  entersState,
-  VoiceConnectionStatus,
-  AudioPlayerStatus
-} = require('@discordjs/voice');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { joinVoiceChannel, VoiceConnectionStatus, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const { FFmpeg } = require('prism-media');
 const express = require('express');
@@ -25,18 +13,22 @@ app.listen(process.env.PORT || 3000, () =>
 
 // === CONFIGURACIÓN ===
 const ALLOWED_CHANNELS = [
-  '1369775267639201792', // Cambia con el ID del canal donde se permiten los comandos
+  '1369775267639201792',
+  '1369547402465509376',
+  '1369767579752730745'
 ];
-const AUDIO_FILE = './sonido.mp3';  // Ruta al archivo de audio
-const TIMEOUT_MS = 10 * 1000;  // Tiempo de timeout para !play o !p
+const TARGET_USER_IDS = [
+  '1298518404033941565', 
+  '1357943865931468911']; // Este es solo un ejemplo. Cambia con tus usuarios.
+
+const AUDIO_FILE = './sonido.mp3'; // Asegúrate de que el archivo de sonido esté en la ruta correcta
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates
   ],
   partials: [Partials.Channel]
 });
@@ -48,83 +40,8 @@ client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
 });
 
-// Comando de timeout: !play o !p
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-
-  if (message.content.startsWith('!play') || message.content.startsWith('!p')) {
-    if (!ALLOWED_CHANNELS.includes(message.channel.id)) return;
-
-    try {
-      const member = message.member;
-      if (!member.moderatable) {
-        return message.reply('❌ No puedo dar timeout a este usuario.');
-      }
-
-      await member.timeout(TIMEOUT_MS, 'Usó !play o !p en canal permitido');
-      await message.reply(
-        `⏳ ${member.user.tag} recibió timeout por usar !play o !p.`
-      );
-    } catch (err) {
-      console.error('Error al aplicar timeout:', err);
-      message.reply('❌ Hubo un error al aplicar el timeout.');
-    }
-  }
-});
-
-// Función para unirse al canal de voz y seguir al usuario
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  const user = newState.member?.user;
-  if (!user || user.bot) return;
-
-  const joinedTarget = newState.channelId && ALLOWED_CHANNELS.includes(newState.channelId);
-  const leftChannel = !newState.channelId;
-
-  // Si el usuario se une a un canal, el bot se une también y reproduce el sonido
-  if (joinedTarget) {
-    const channel = newState.channel;
-    if (!channel) return;
-
-    // Destruir conexión anterior si existe
-    if (connection) connection.destroy();
-
-    connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: channel.guild.id,
-      adapterCreator: channel.guild.voiceAdapterCreator
-    });
-
-    try {
-      await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-      console.log(`🔊 Conectado a canal de voz: ${channel.name}`);
-
-      player = createAudioPlayer();
-      connection.subscribe(player);
-      playLoop();  // Reproducir sonido en bucle
-
-    } catch (error) {
-      console.error('❌ Error al conectar a voz:', error);
-    }
-  }
-
-  // Si el usuario se desconecta, el bot también se desconecta
-  if (leftChannel && connection) {
-    const guild = newState.guild;
-    const stillSomeone = guild.members.cache.some(m =>
-      m.voice.channelId && ALLOWED_CHANNELS.includes(m.voice.channelId)
-    );
-
-    if (!stillSomeone) {
-      player?.stop();
-      connection.destroy();
-      connection = null;
-      console.log('👋 Salí del canal de voz');
-    }
-  }
-});
-
-// 🔁 Función para reproducir sonido en bucle
-function playLoop() {
+// Función para reproducir el audio en bucle
+function playSound() {
   const ffmpeg = new FFmpeg({
     args: [
       '-analyzeduration', '0',
@@ -134,16 +51,66 @@ function playLoop() {
       '-ar', '48000',
       '-ac', '2'
     ],
-    shell: false,
-    executablePath: ffmpegInstaller.path // 🔧 Ruta de ffmpeg
+    executablePath: ffmpegInstaller.path // Asegúrate de que esta ruta esté bien
   });
 
   const resource = createAudioResource(ffmpeg);
+  player = createAudioPlayer();
   player.play(resource);
+  connection.subscribe(player);
 
-  player.once(AudioPlayerStatus.Idle, () => {
-    playLoop();  // Llamada recursiva para bucle
+  player.once('idle', () => {
+    console.log('Audio terminado, reiniciando...');
+    playSound(); // Volver a reproducir el sonido cuando termine
   });
 }
+
+// Seguimiento de usuarios en canales de voz
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const user = newState.member?.user;
+  if (!user || user.bot) return;
+
+  const joinedTarget = TARGET_USER_IDS.includes(user.id) && newState.channelId !== null;
+  const leftChannel = TARGET_USER_IDS.includes(user.id) && newState.channelId === null;
+
+  // Si el usuario objetivo se une a un canal de voz
+  if (joinedTarget) {
+    const channel = newState.channel;
+    if (!channel) return;
+
+    if (connection) connection.destroy(); // Desconectar del canal anterior si ya está conectado
+
+    // Unirse al canal de voz
+    connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator,
+    });
+
+    try {
+      await connection.once(VoiceConnectionStatus.Ready, () => {
+        console.log(`🔊 Conectado al canal de voz: ${channel.name}`);
+        playSound(); // Reproducir el sonido al conectarse al canal
+      });
+    } catch (error) {
+      console.error('❌ Error al conectar a voz:', error);
+    }
+  }
+
+  // Si el usuario objetivo se desconecta del canal de voz
+  if (leftChannel && connection) {
+    const guild = newState.guild;
+    const stillSomeone = guild.members.cache.some(m =>
+      TARGET_USER_IDS.includes(m.id) && m.voice.channelId
+    );
+
+    // Si no hay más usuarios objetivos en el canal, desconectarse
+    if (!stillSomeone) {
+      connection.destroy();
+      connection = null;
+      console.log('👋 Salí del canal de voz porque ya no hay más usuarios objetivo');
+    }
+  }
+});
 
 client.login(process.env.DISCORD_TOKEN);
