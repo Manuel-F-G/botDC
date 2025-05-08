@@ -1,5 +1,4 @@
 process.env.FFMPEG_PATH = require('ffmpeg-static');
-
 const {
   Client,
   GatewayIntentBits,
@@ -14,16 +13,22 @@ const {
   VoiceConnectionStatus,
   AudioPlayerStatus
 } = require('@discordjs/voice');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const { FFmpeg } = require('prism-media');
-const ffmpegPath = require('ffmpeg-static');
 const express = require('express');
-const fs = require('fs');
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot activo'));
 app.listen(process.env.PORT || 3000, () =>
   console.log('🌐 Servidor web activo')
 );
+
+// === CONFIGURACIÓN ===
+const ALLOWED_CHANNELS = [
+  '1369775267639201792', // Cambia con el ID del canal donde se permiten los comandos
+];
+const AUDIO_FILE = './sonido.mp3';  // Ruta al archivo de audio
+const TIMEOUT_MS = 10 * 1000;  // Tiempo de timeout para !play o !p
 
 const client = new Client({
   intents: [
@@ -36,98 +41,90 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-let followedUserId = null;
 let connection = null;
 let player = null;
-let isPaused = false;
-const AUDIO_FILE = './sonido.mp3';
 
 client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
-  console.log('🎵 sonido.mp3 existe:', fs.existsSync(AUDIO_FILE));
 });
 
+// Comando de timeout: !play o !p
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // Timeout global para !play o !p
   if (message.content.startsWith('!play') || message.content.startsWith('!p')) {
+    if (!ALLOWED_CHANNELS.includes(message.channel.id)) return;
+
     try {
       const member = message.member;
       if (!member.moderatable) {
         return message.reply('❌ No puedo dar timeout a este usuario.');
       }
 
-      await member.timeout(10_000, 'Usó !play o !p');
-      await message.reply(`⏳ ${member.user.tag} recibió timeout por usar !play o !p.`);
+      await member.timeout(TIMEOUT_MS, 'Usó !play o !p en canal permitido');
+      await message.reply(
+        `⏳ ${member.user.tag} recibió timeout por usar !play o !p.`
+      );
     } catch (err) {
       console.error('Error al aplicar timeout:', err);
       message.reply('❌ Hubo un error al aplicar el timeout.');
     }
   }
-
-  // Interrumpir a un usuario
-  if (message.content.startsWith('!interrumpir')) {
-    const mentioned = message.mentions.users.first();
-    if (!mentioned) return message.reply('❌ Debes mencionar a alguien.');
-    followedUserId = mentioned.id;
-    isPaused = false;
-    message.reply(`👂 Siguiendo a ${mentioned.username}`);
-  }
-
-  // Pausar
-  if (message.content === '!pausar') {
-    followedUserId = null;
-    isPaused = true;
-    if (connection) {
-      connection.destroy();
-      connection = null;
-    }
-    message.reply('⏸️ Interrupciones pausadas.');
-  }
 });
 
-// Reacciona al usuario hablando
+// Función para unirse al canal de voz y seguir al usuario
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const user = newState.member?.user;
-  if (!user || user.bot || user.id !== followedUserId) return;
+  if (!user || user.bot) return;
 
-  const channel = newState.channel;
-  if (!channel || isPaused) return;
+  const joinedTarget = newState.channelId && ALLOWED_CHANNELS.includes(newState.channelId);
+  const leftChannel = !newState.channelId;
 
-  if (!connection || connection.joinConfig.channelId !== channel.id) {
+  // Si el usuario se une a un canal, el bot se une también y reproduce el sonido
+  if (joinedTarget) {
+    const channel = newState.channel;
+    if (!channel) return;
+
+    // Destruir conexión anterior si existe
+    if (connection) connection.destroy();
+
+    connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator
+    });
+
     try {
-      if (connection) connection.destroy();
-
-      connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: channel.guild.id,
-        adapterCreator: channel.guild.voiceAdapterCreator
-      });
-
       await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-      console.log(`🔊 Conectado a ${channel.name}`);
+      console.log(`🔊 Conectado a canal de voz: ${channel.name}`);
 
       player = createAudioPlayer();
       connection.subscribe(player);
-    } catch (err) {
-      console.error('❌ Error al conectar a voz:', err);
-      return;
+      playLoop();  // Reproducir sonido en bucle
+
+    } catch (error) {
+      console.error('❌ Error al conectar a voz:', error);
     }
   }
 
-  // Si el usuario se desmutea o habla
-  if (!oldState.selfMute && newState.speaking) {
-    playSound();
+  // Si el usuario se desconecta, el bot también se desconecta
+  if (leftChannel && connection) {
+    const guild = newState.guild;
+    const stillSomeone = guild.members.cache.some(m =>
+      m.voice.channelId && ALLOWED_CHANNELS.includes(m.voice.channelId)
+    );
+
+    if (!stillSomeone) {
+      player?.stop();
+      connection.destroy();
+      connection = null;
+      console.log('👋 Salí del canal de voz');
+    }
   }
 });
 
-function playSound() {
-  if (!fs.existsSync(AUDIO_FILE)) {
-    console.error('❌ Archivo sonido.mp3 no encontrado');
-    return;
-  }
-
+// 🔁 Función para reproducir sonido en bucle
+function playLoop() {
   const ffmpeg = new FFmpeg({
     args: [
       '-analyzeduration', '0',
@@ -137,18 +134,15 @@ function playSound() {
       '-ar', '48000',
       '-ac', '2'
     ],
-    executablePath: ffmpegPath
+    shell: false,
+    executablePath: ffmpegInstaller.path // 🔧 Ruta de ffmpeg
   });
 
   const resource = createAudioResource(ffmpeg);
   player.play(resource);
 
-  player.on(AudioPlayerStatus.Playing, () => {
-    console.log('▶️ Reproduciendo sonido');
-  });
-
-  player.on('error', err => {
-    console.error('❌ Error en el reproductor:', err);
+  player.once(AudioPlayerStatus.Idle, () => {
+    playLoop();  // Llamada recursiva para bucle
   });
 }
 
