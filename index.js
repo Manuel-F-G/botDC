@@ -30,7 +30,7 @@ app.listen(process.env.PORT || 3000, () =>
 const TARGET_USER_IDS = [
   '1368112694468808807',
   '1298518404033941565',
-  '1055009202168406118', 
+  '1055009202168406118',
   '752987605808840807',
   '1344499474994823230'
 ];
@@ -96,6 +96,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const channel = newState.channel;
     if (!channel) return;
 
+    console.log(`🔊 Intentando unirme al canal: ${channel.name}`);
+
     if (connection) connection.destroy();
 
     connection = joinVoiceChannel({
@@ -104,6 +106,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       adapterCreator: channel.guild.voiceAdapterCreator
     });
 
+    // Mejorar la captura de errores al intentar conectar al canal de voz
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
       console.log(`🔊 Conectado a canal de voz: ${channel.name}`);
