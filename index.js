@@ -13,10 +13,12 @@ const {
   VoiceConnectionStatus,
   AudioPlayerStatus
 } = require('@discordjs/voice');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const { FFmpeg } = require('prism-media');
 const express = require('express');
 const fs = require('fs');
+
+// Usamos ffmpeg-static para obtener el path del ejecutable
+const ffmpegPath = require('ffmpeg-static').path;
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot activo'));
@@ -143,15 +145,14 @@ function playLoop() {
       '-ac', '2'
     ],
     shell: false,
-    executablePath: ffmpegInstaller.path // 🔧 Esto es lo correcto
+    executablePath: ffmpegPath // Asegúrate de usar ffmpegPath correctamente
   });
-  
 
   const resource = createAudioResource(ffmpeg);
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
-    playLoop(); // Llamada recursiva para bucle
+    playLoop(); // Llamada recursiva para el bucle
   });
 }
 
