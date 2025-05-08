@@ -5,13 +5,11 @@ const {
   createAudioResource,
   AudioPlayerStatus,
   VoiceConnectionStatus,
-  entersState,
-  AudioPlayer
+  entersState
 } = require('@discordjs/voice');
 const { FFmpeg } = require('prism-media');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const express = require('express');
-const { promisify } = require('util');
 
 process.env.FFMPEG_PATH = ffmpegInstaller.path;
 
@@ -47,7 +45,9 @@ app.listen(process.env.PORT || 3000, () =>
 // Función para unirse al canal de voz
 async function joinToVoiceChannel(channel) {
   if (connection) {
-    connection.destroy();
+    if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      connection.destroy();
+    }
   }
 
   connection = joinVoiceChannel({
@@ -96,7 +96,9 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 
   if (newState.member.id === targetUser.id && newState.channelId !== oldState.channelId) {
     // Si el usuario objetivo se mueve de canal
-    if (connection) connection.destroy();
+    if (connection && connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      connection.destroy();
+    }
     joinToVoiceChannel(newState.channel);
   }
 
