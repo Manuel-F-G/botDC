@@ -34,7 +34,7 @@ client.on('messageCreate', async (message) => {
 
   const content = message.content.toLowerCase().trim();
 
-  // 🔇 Timeout por comandos en canales prohibidos
+  // Timeout 
   if (FORBIDDEN_CHANNELS.includes(message.channel.id)) {
     if (TARGET_COMMANDS.some(command => content.startsWith(command))) {
       console.log(`⚡ Usuario ${message.author.tag} usó ${message.content} en un canal no permitido.`);
@@ -44,9 +44,9 @@ client.on('messageCreate', async (message) => {
     }
   }
 
-  // 🗨️ Respuesta automática a "ome"
-  if (content === 'ome') {
-    message.reply('ome, haz ome wei');
+  // 🗨️ Respuesta automática a "ome" como palabra
+  if (/\bome\b/.test(content)) {
+    message.reply('ome, haz ome wei🐀🐀🐀');
   }
 });
 
