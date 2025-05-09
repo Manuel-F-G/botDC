@@ -32,15 +32,21 @@ const giveTimeout = (member, duration) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // Comprobacion
+  const content = message.content.toLowerCase().trim();
+
+  // 🔇 Timeout por comandos en canales prohibidos
   if (FORBIDDEN_CHANNELS.includes(message.channel.id)) {
-    if (TARGET_COMMANDS.some(command => message.content.toLowerCase().startsWith(command))) {
+    if (TARGET_COMMANDS.some(command => content.startsWith(command))) {
       console.log(`⚡ Usuario ${message.author.tag} usó ${message.content} en un canal no permitido.`);
-      
-      // Aplicamos el timeout
       giveTimeout(message.member, TIMEOUT_DURATION);
       message.reply('JAJAJAJAJA pendejo no vuelvas a poner ese comando');
+      return;
     }
+  }
+
+  // 🗨️ Respuesta automática a "ome"
+  if (content === 'ome') {
+    message.reply('ome, haz ome wei');
   }
 });
 
