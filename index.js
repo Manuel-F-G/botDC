@@ -34,7 +34,7 @@ client.on('messageCreate', async (message) => {
 
   const content = message.content.toLowerCase().trim();
 
-  // 🔇 Timeout por comandos en canales prohibidos
+  // Timeout 
   if (FORBIDDEN_CHANNELS.includes(message.channel.id)) {
     if (TARGET_COMMANDS.some(command => content.startsWith(command))) {
       console.log(`⚡ Usuario ${message.author.tag} usó ${message.content} en un canal no permitido.`);
@@ -44,10 +44,22 @@ client.on('messageCreate', async (message) => {
     }
   }
 
-  // 🗨️ Respuesta automática a "ome", "0me", "om3", "0m3"
+  // palabras ome
   const omeRegex = /\b[o0][m][e3]\b/;
   if (omeRegex.test(content)) {
     message.reply('ome, haz ome wei🐀🐀🐀');
+    return;
+  }
+
+  //  Comando
+  if (content.startsWith('!sapo') && message.mentions.users.size > 0) {
+    const target = message.mentions.users.first();
+    const isSapo = Math.random() < 0.5;
+    const respuesta = isSapo
+      ? ` ${target.username} es un puto sapo 🐸`
+      : ` ${target.username} no es sapo, pero si te llevas unos tablazos`;
+    message.channel.send(respuesta);
+    return;
   }
 });
 
