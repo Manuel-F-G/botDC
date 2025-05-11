@@ -88,6 +88,14 @@ client.on('messageCreate', async (message) => {
     message.reply('me gusta la verga negra, dura y que se me note hasta la pancita');
     return;
   }
+
+  if (
+    message.content.includes('<@685301041092231172>') || 
+    message.content.includes('<@!685301041092231172>')
+  ) {
+    message.reply('Hola soy savz, me gusta la verga peluda, que me la metan por el culo y me dejen abierto el horto, que me echen su lechita, sisisi que rico');
+    return;
+  }
 });
 
 client.login(process.env.DISCORD_TOKEN);
