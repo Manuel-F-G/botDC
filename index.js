@@ -93,7 +93,7 @@ client.on('messageCreate', async (message) => {
     message.content.includes('<@685301041092231172>') || 
     message.content.includes('<@!685301041092231172>')
   ) {
-    message.reply('Hola soy savz, me gusta la verga peluda, que me la metan por el culo y me dejen abierto el horto, que me echen su lechita, sisisi que rico');
+    message.reply('Hola soy savz, me gusta la verga peluda, que me la metan por el culo y me dejen abierto el orto, que me echen su lechita, sisisi que rico');
     return;
   }
 });
