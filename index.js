@@ -18,6 +18,7 @@ const FORBIDDEN_CHANNELS = [
 
 const TIMEOUT_DURATION = 10000; // 10 segundos de timeout
 const TARGET_COMMANDS = ['!play', '!p'];
+const VICTOR_ID = '1298518404033941565'; // ID de Victor Mendivil
 
 client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
@@ -51,7 +52,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  //  Comando
+  // Comando !sapo
   if (content.startsWith('!sapo') && message.mentions.users.size > 0) {
     const target = message.mentions.users.first();
     const isSapo = Math.random() < 0.5;
@@ -59,6 +60,12 @@ client.on('messageCreate', async (message) => {
       ? ` ${target.username} es un puto sapo 🐸`
       : ` ${target.username} no es sapo, pero si te llevas unos tablazos`;
     message.channel.send(respuesta);
+    return;
+  }
+
+  // Mención a Victor Mendivil
+  if (message.mentions.users.has(VICTOR_ID)) {
+    message.reply('No hare ome, no estes chingando');
     return;
   }
 });
