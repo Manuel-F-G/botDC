@@ -19,9 +19,6 @@ const FORBIDDEN_CHANNELS = [
 const TIMEOUT_DURATION = 10000; // 10 segundos de timeout
 const TARGET_COMMANDS = ['!play', '!p'];
 
-const VICTOR_ID = '1298518404033941565';
-const JOTO_ID = '1357943865931468911';
-
 client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
 });
@@ -37,7 +34,7 @@ client.on('messageCreate', async (message) => {
 
   const content = message.content.toLowerCase().trim();
 
-  // Timeout 
+  // Timeout por comandos en canales prohibidos
   if (FORBIDDEN_CHANNELS.includes(message.channel.id)) {
     if (TARGET_COMMANDS.some(command => content.startsWith(command))) {
       console.log(`⚡ Usuario ${message.author.tag} usó ${message.content} en un canal no permitido.`);
@@ -54,7 +51,7 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // Comando !sapo
+  // Comando !sapo con @usuario
   if (content.startsWith('!sapo') && message.mentions.users.size > 0) {
     const target = message.mentions.users.first();
     const isSapo = Math.random() < 0.5;
@@ -65,15 +62,30 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // Mención explícita a Victor Mendivil
-  if (message.content.includes(`<@${VICTOR_ID}>`) || message.content.includes(`<@!${VICTOR_ID}>`)) {
-    message.reply('No hare ome, no estes chingando');
+  // Mención directa a Victor Mendivil 09 (ID: 1298518404033941565)
+  if (
+    message.content.includes('<@1298518404033941565>') || 
+    message.content.includes('<@!1298518404033941565>')
+  ) {
+    message.reply('No haré ome, no estés chingando');
     return;
   }
 
-  // Mención explícita al joto
-  if (message.content.includes(`<@${JOTO_ID}>`) || message.content.includes(`<@!${JOTO_ID}>`)) {
+  // Mención directa a otro usuario joto (ID: 1357943865931468911)
+  if (
+    message.content.includes('<@1357943865931468911>') || 
+    message.content.includes('<@!1357943865931468911>')
+  ) {
     message.reply('soy joto y me gusta la verga');
+    return;
+  }
+
+  // Mención directa al nuevo usuario (ID: 1055009202168406118)
+  if (
+    message.content.includes('<@1055009202168406118>') || 
+    message.content.includes('<@!1055009202168406118>')
+  ) {
+    message.reply('me gusta la verga negra, dura y que se me note hasta la pancita');
     return;
   }
 });
