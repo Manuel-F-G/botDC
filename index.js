@@ -18,7 +18,8 @@ const FORBIDDEN_CHANNELS = [
 
 const TIMEOUT_DURATION = 10000; // 10 segundos de timeout
 const TARGET_COMMANDS = ['!play', '!p'];
-const VICTOR_ID = '1298518404033941565'; // ID de Victor Mendivil
+const VICTOR_ID = '1298518404033941565';
+const JOTO_ID = '1357943865931468911'; 
 
 client.once('ready', () => {
   console.log(`✅ Bot iniciado como ${client.user.tag}`);
@@ -66,6 +67,12 @@ client.on('messageCreate', async (message) => {
   // Mención a Victor Mendivil
   if (message.mentions.users.has(VICTOR_ID)) {
     message.reply('No hare ome, no estes chingando');
+    return;
+  }
+
+  // Mención al joto
+  if (message.mentions.users.has(JOTO_ID)) {
+    message.reply('soy joto y me gusta la verga');
     return;
   }
 });
